@@ -1,0 +1,623 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Regulador de brillo de 5 LEDs</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Archivo:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: banco de laboratorio — protoboard viva a la izquierda, perilla y ajustes a la derecha; debajo medidores, gráfica y retos */
+:root{
+  --bg:#eef0ec; --surface:#fbfcf9; --board:#f3f1e8; --ink:#1d2421; --muted:#5d6762;
+  --line:#d4d8d0; --accent:#1f5fbf; --accent-soft:#dbe6f7; --copper:#b8692e; --flow:#e0a400;
+  --hole:#c9c6b8; --rail-red:#c8372d; --rail-blue:#2b5fb3; --wire-red:#d23b2f; --wire-black:#262a28; --wire-orange:#e07a1f;
+  --ok:#2f8f4e; --warn:#c77700; --bad:#c8372d; --knob:#e9e9e3; --knob-edge:#9a9a90;
+  --display:"Bricolage Grotesque","Trebuchet MS",sans-serif;
+  --body:"Archivo","Segoe UI",system-ui,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#131816; --surface:#1b221f; --board:#252a25; --ink:#e6ebe7; --muted:#9aa59f;
+  --line:#333c37; --accent:#7aa8f0; --accent-soft:#21314a; --copper:#e09456; --flow:#ffd34d;
+  --hole:#4a4d44; --rail-red:#e5675c; --rail-blue:#6f9be6; --wire-red:#e5574b; --wire-black:#5d6460; --wire-orange:#f0923d;
+  --ok:#5fc47e; --warn:#f0a43a; --bad:#ef6b60; --knob:#cfd2cb; --knob-edge:#7c807a; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#131816; --surface:#1b221f; --board:#252a25; --ink:#e6ebe7; --muted:#9aa59f;
+  --line:#333c37; --accent:#7aa8f0; --accent-soft:#21314a; --copper:#e09456; --flow:#ffd34d;
+  --hole:#4a4d44; --rail-red:#e5675c; --rail-blue:#6f9be6; --wire-red:#e5574b; --wire-black:#5d6460; --wire-orange:#f0923d;
+  --ok:#5fc47e; --warn:#f0a43a; --bad:#ef6b60; --knob:#cfd2cb; --knob-edge:#7c807a; color-scheme:dark}
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.55;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:24px 56px}
+.wrap{max-width:1000px;margin:0 auto;display:flex;flex-direction:column;gap:36px}
+h1,h2,h3{font-family:var(--display);text-wrap:balance;margin:0;line-height:1.1}
+h1{font-size:clamp(1.9rem,6vw,3rem);font-weight:800;letter-spacing:-.02em}
+h2{font-size:1.5rem;font-weight:800}
+h3{font-size:1rem;font-weight:700}
+p{margin:0;max-width:65ch}
+.eyebrow{font-family:var(--mono);font-size:.74rem;letter-spacing:.12em;text-transform:uppercase;color:var(--copper)}
+header{display:flex;flex-direction:column;gap:10px}
+header p,.lead{color:var(--muted)}
+section{display:flex;flex-direction:column;gap:14px}
+button{font:inherit;cursor:pointer}
+button:focus-visible,input:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* Lab */
+.tabs{display:flex;gap:6px;flex-wrap:wrap}
+.tabs button{padding:8px 16px;border-radius:999px;border:1px solid var(--line);background:transparent;color:var(--ink);font-weight:600;font-size:.9rem}
+.tabs button[aria-selected="true"]{background:var(--ink);color:var(--surface);border-color:var(--ink)}
+.lab{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:16px;display:grid;grid-template-columns:minmax(0,1.55fr) minmax(0,1fr);gap:20px}
+@media (max-width:780px){.lab{grid-template-columns:1fr}}
+.stage{display:flex;flex-direction:column;gap:12px;min-width:0}
+svg.board{display:block;width:100%;height:auto;touch-action:manipulation}
+.hint{font-size:.82rem;color:var(--muted)}
+.alert{font-size:.9rem;font-weight:600;padding:10px 12px;border-radius:10px;background:color-mix(in srgb,var(--bad) 14%,transparent);color:var(--bad)}
+.alert.w{background:color-mix(in srgb,var(--warn) 16%,transparent);color:var(--warn)}
+
+.build{border:1px dashed var(--copper);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:8px}
+.build .top{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.dots{display:flex;gap:6px}
+.dots i{width:9px;height:9px;border-radius:50%;background:var(--line);display:block}
+.dots i.on{background:var(--copper)}
+.build p{font-size:.92rem}
+.nav{display:flex;gap:8px}
+.btn{padding:7px 14px;border-radius:8px;border:1px solid var(--line);background:transparent;color:var(--ink);font-size:.88rem;font-weight:600}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--surface)}
+.btn:disabled{opacity:.4;cursor:default}
+
+.controls{display:flex;flex-direction:column;gap:16px;min-width:0}
+.knob-row{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+svg.knob{width:170px;height:170px;flex:none;touch-action:none;cursor:grab;user-select:none}
+svg.knob:active{cursor:grabbing}
+.knob-side{display:flex;flex-direction:column;gap:10px;flex:1;min-width:120px}
+.power{display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:12px;border:1px solid var(--line);background:transparent;color:var(--ink);font-weight:700}
+.power .led{width:12px;height:12px;border-radius:50%;background:var(--line)}
+.power[aria-pressed="true"] .led{background:var(--ok);box-shadow:0 0 10px var(--ok)}
+.field{display:flex;flex-direction:column;gap:6px}
+.field>span{font-size:.75rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.seg{display:flex;flex-wrap:wrap;gap:4px}
+.seg button{padding:6px 11px;border-radius:8px;border:1px solid var(--line);background:transparent;color:var(--ink);font-size:.86rem;font-family:var(--mono)}
+.seg button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--surface)}
+.seg button.danger[aria-pressed="true"]{background:var(--bad);border-color:var(--bad)}
+input[type=range]{width:100%;accent-color:var(--accent)}
+
+/* Medidores */
+.meters{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+@media (max-width:620px){.meters{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.meter{border-top:2px solid var(--line);padding-top:6px}
+.meter span{display:block;font-size:.7rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.meter b{font-family:var(--mono);font-size:1.3rem;font-variant-numeric:tabular-nums}
+.meter.hot{border-color:var(--bad)} .meter.hot b{color:var(--bad)}
+
+.ledlist{display:flex;flex-direction:column}
+.lrow{display:grid;grid-template-columns:16px 5.5rem minmax(0,1fr) auto;gap:10px;align-items:center;padding:9px 0;border-bottom:1px solid var(--line)}
+.sw{width:14px;height:14px;border-radius:50%;border:1px solid var(--knob-edge)}
+.lname{font-weight:600}
+.lbar{display:flex;flex-direction:column;gap:3px;min-width:0}
+.track{height:8px;border-radius:4px;background:var(--line);overflow:hidden}
+.fill{height:100%;width:0;border-radius:4px;background:var(--ok);transition:width .15s}
+.lstat{font-size:.8rem;color:var(--muted);font-variant-numeric:tabular-nums}
+.lrow .btn{font-size:.78rem;padding:5px 9px;white-space:nowrap}
+.ohm{background:var(--accent-soft);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:6px}
+.ohm .f{font-family:var(--mono);font-size:.9rem;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.two{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:24px}
+@media (max-width:780px){.two{grid-template-columns:1fr}}
+
+/* Gráfica */
+.chart-box{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px}
+svg.chart{display:block;width:100%;height:auto}
+
+/* Retos */
+.retos{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px}
+.reto{border:1px solid var(--line);border-radius:12px;padding:12px 14px;display:grid;grid-template-columns:28px 1fr;gap:10px;background:var(--surface)}
+.reto .chk{width:26px;height:26px;border-radius:50%;border:2px solid var(--line);display:grid;place-items:center;font-weight:800;color:transparent}
+.reto.done{border-color:var(--ok)} .reto.done .chk{background:var(--ok);border-color:var(--ok);color:var(--surface)}
+.reto p{font-size:.9rem;color:var(--muted)}
+.prog{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.prog b{font-family:var(--mono)}
+
+.mats{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:0 24px;margin:0;padding:0;list-style:none}
+.mats li{display:flex;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid var(--line)}
+.mats li b{font-family:var(--mono);color:var(--copper);font-weight:600;white-space:nowrap}
+.qs{margin:0;padding-left:1.2rem;display:flex;flex-direction:column;gap:6px}
+
+/* SVG */
+.pcb{fill:var(--board);stroke:var(--line)}
+.hole{fill:var(--hole)}
+.wire{fill:none;stroke-width:3.5;stroke-linecap:round;stroke-linejoin:round}
+.lead{stroke:var(--muted);stroke-width:1.6;fill:none}
+.flow{fill:none;stroke:var(--flow);stroke-width:2.2;stroke-dasharray:2 8;stroke-linecap:round;opacity:0;pointer-events:none}
+.lbl{font-family:var(--mono);font-size:9px;fill:var(--muted)}
+.ledg{cursor:pointer}
+.ghost{opacity:.12}
+.current-step{animation:pulse 1.4s ease-in-out infinite}
+@keyframes pulse{50%{opacity:.55}}
+@media (prefers-reduced-motion:reduce){.current-step{animation:none}.fill{transition:none}}
+</style>
+
+</head>
+<body>
+<div class="wrap">
+<header>
+  <span class="eyebrow">Proyecto sin Arduino · Diseño y Tecnología</span>
+  <h1>Regulador de brillo de 5 LEDs</h1>
+  <p>Un potenciómetro en serie con la batería controla cuánta corriente llega a los LEDs. Gira la perilla, cambia la batería o las resistencias y mira cómo responde el circuito. Toca un LED para quitarlo o ponerlo al revés.</p>
+</header>
+
+<section aria-label="Laboratorio">
+  <div class="tabs" role="tablist">
+    <button role="tab" id="tab-probar" aria-selected="true">Probar circuito</button>
+    <button role="tab" id="tab-armar" aria-selected="false">Armar paso a paso</button>
+  </div>
+  <div class="lab">
+    <div class="stage">
+      <svg class="board" id="board" viewBox="0 0 420 330" role="img" aria-label="Protoboard con batería, interruptor, potenciómetro, cinco resistencias y cinco LEDs">
+        <defs>
+          <pattern id="holes" width="12" height="12" patternUnits="userSpaceOnUse"><rect x="4.5" y="4.5" width="3" height="3" rx=".8" class="hole"/></pattern>
+          <filter id="glow" x="-150%" y="-150%" width="400%" height="400%"><feGaussianBlur stdDeviation="7"/></filter>
+        </defs>
+        <rect x="84" y="10" width="330" height="310" rx="10" class="pcb"/>
+        <rect x="92" y="28" width="314" height="13" fill="url(#holes)"/>
+        <rect x="92" y="286" width="314" height="13" fill="url(#holes)"/>
+        <rect x="92" y="52" width="314" height="226" fill="url(#holes)"/>
+        <line x1="96" y1="21" x2="404" y2="21" stroke="var(--rail-red)" stroke-width="2"/>
+        <line x1="96" y1="307" x2="404" y2="307" stroke="var(--rail-blue)" stroke-width="2"/>
+        <text x="396" y="18" class="lbl" style="fill:var(--rail-red)">+</text>
+        <text x="396" y="317" class="lbl" style="fill:var(--rail-blue)">−</text>
+
+        <!-- batería -->
+        <g id="batt">
+          <rect x="10" y="150" width="56" height="122" rx="7" fill="#2b302d"/>
+          <rect x="10" y="150" width="56" height="28" rx="7" fill="#b8692e"/>
+          <rect x="10" y="168" width="56" height="10" fill="#b8692e"/>
+          <rect x="20" y="143" width="12" height="9" rx="2" fill="#c9c9c0"/>
+          <rect x="44" y="143" width="12" height="9" rx="2" fill="#c9c9c0"/>
+          <text x="26" y="168" text-anchor="middle" font-family="var(--mono)" font-size="11" fill="#fff">+</text>
+          <text x="50" y="168" text-anchor="middle" font-family="var(--mono)" font-size="11" fill="#fff">−</text>
+          <text id="batt-label" x="38" y="222" text-anchor="middle" font-family="var(--display)" font-weight="800" font-size="17" fill="#fff">9 V</text>
+        </g>
+
+        <!-- grupo 1: interruptor, cable rojo, potenciómetro, cable del cursor -->
+        <g id="g1">
+          <path class="wire" style="stroke:var(--wire-red)" d="M26,145 V128"/>
+          <path class="wire" style="stroke:var(--wire-red)" d="M26,104 V94 H96 V134 H110"/>
+          <g id="sw" class="ledg" tabindex="0" role="button" aria-label="Interruptor">
+            <rect x="13" y="103" width="26" height="26" rx="4" fill="#3a3f3c"/>
+            <rect x="18" y="107" width="16" height="18" rx="2" fill="#20231f"/>
+            <rect id="sw-lever" x="20" y="108" width="12" height="8" rx="2" fill="#e9e9e3"/>
+          </g>
+          <line x1="110" y1="102" x2="110" y2="120" class="lead"/>
+          <line x1="125" y1="102" x2="125" y2="120" class="lead"/>
+          <line x1="140" y1="102" x2="140" y2="120" class="lead"/>
+          <rect x="100" y="62" width="50" height="42" rx="6" fill="#2f6fb8"/>
+          <g id="mini-knob">
+            <circle cx="125" cy="83" r="14" fill="var(--knob)" stroke="var(--knob-edge)"/>
+            <rect x="123.5" y="70" width="3" height="11" rx="1" fill="#333"/>
+          </g>
+          <path class="wire" style="stroke:var(--wire-orange)" d="M125,134 V146 H160 V34"/>
+          <text x="104" y="58" class="lbl">potenciómetro</text>
+        </g>
+        <!-- grupo 2: resistencias -->
+        <g id="g2"></g>
+        <!-- grupo 3: LEDs -->
+        <g id="g3"></g>
+        <!-- grupo 4: cable negro -->
+        <g id="g4">
+          <path class="wire" style="stroke:var(--wire-black)" d="M50,145 V136 H74 V296 H96"/>
+        </g>
+        <!-- corriente -->
+        <g id="flows"></g>
+      </svg>
+      <div class="alert" id="alert" hidden></div>
+      <div class="build" id="build" hidden>
+        <div class="top">
+          <h3 id="b-title"></h3>
+          <div class="dots" id="b-dots"></div>
+        </div>
+        <p id="b-text"></p>
+        <div class="nav">
+          <button class="btn" id="b-prev" type="button">Anterior</button>
+          <button class="btn primary" id="b-next" type="button">Siguiente paso</button>
+        </div>
+      </div>
+      <p class="hint">Toca el interruptor del cable rojo para encender o apagar. Los puntos amarillos muestran la corriente: más rápidos, más corriente.</p>
+    </div>
+
+    <div class="controls">
+      <div class="knob-row">
+        <svg class="knob" id="knob" viewBox="0 0 170 170" role="slider" tabindex="0" aria-label="Perilla del potenciómetro" aria-valuemin="0" aria-valuemax="10" aria-valuenow="6.5"></svg>
+        <div class="knob-side">
+          <button class="power" id="power" type="button" aria-pressed="true"><span class="led"></span><span id="power-txt">Encendido</span></button>
+          <label class="field" for="range"><span>Ajuste fino</span><input type="range" id="range" min="0" max="1000" value="650"></label>
+        </div>
+      </div>
+      <div class="field"><span>Batería</span>
+        <div class="seg" id="seg-v">
+          <button type="button" data-v="3">3 V</button><button type="button" data-v="4.5">4,5 V</button><button type="button" data-v="6">6 V</button><button type="button" data-v="9" aria-pressed="true">9 V</button>
+        </div></div>
+      <div class="field"><span>Potenciómetro</span>
+        <div class="seg" id="seg-p">
+          <button type="button" data-p="1000" aria-pressed="true">1 kΩ</button><button type="button" data-p="10000">10 kΩ</button>
+        </div></div>
+      <div class="field"><span>Resistencia de cada LED</span>
+        <div class="seg" id="seg-r">
+          <button type="button" data-r="220">220 Ω</button><button type="button" data-r="470" aria-pressed="true">470 Ω</button><button type="button" data-r="1000">1 kΩ</button><button type="button" data-r="0" class="danger">Sin resistencia</button>
+        </div></div>
+      <div class="nav" style="flex-wrap:wrap">
+        <button class="btn" id="repair" type="button" hidden>Cambiar LEDs quemados</button>
+        <button class="btn" id="reset" type="button">Restablecer circuito</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section aria-labelledby="t-med">
+  <h2 id="t-med">Multímetro</h2>
+  <div class="meters">
+    <div class="meter"><span>Potenciómetro</span><b id="m-rp">350 Ω</b></div>
+    <div class="meter"><span>Corriente total</span><b id="m-it">0 mA</b></div>
+    <div class="meter"><span>Voltaje en rieles</span><b id="m-vn">0 V</b></div>
+    <div class="meter" id="m-pw-box"><span>Calor en potenc.</span><b id="m-pw">0 mW</b></div>
+  </div>
+  <div class="two">
+    <div class="ledlist" id="ledlist"></div>
+    <div class="ohm">
+      <h3>Ley de Ohm en vivo</h3>
+      <p class="f" id="ohm-f"></p>
+      <p id="ohm-t" style="font-size:.9rem"></p>
+    </div>
+  </div>
+</section>
+
+<section aria-labelledby="t-gra">
+  <h2 id="t-gra">Corriente según la posición de la perilla</h2>
+  <p class="lead">La curva usa la batería, el potenciómetro y las resistencias que elegiste. El punto es la posición actual. Compara la forma con 1 kΩ y con 10 kΩ.</p>
+  <div class="chart-box"><svg class="chart" id="chart" viewBox="0 0 360 180" role="img" aria-label="Gráfica de corriente total contra posición de la perilla"></svg></div>
+</section>
+
+<section aria-labelledby="t-ret">
+  <div class="prog"><h2 id="t-ret">Retos</h2><span><b id="r-count">0 de 5</b> · <button class="btn" id="r-reset" type="button">Reiniciar retos</button></span></div>
+  <p class="lead">Se marcan solos cuando el simulador detecta que lo lograste.</p>
+  <div class="retos" id="retos"></div>
+</section>
+
+<section aria-labelledby="t-mat">
+  <h2 id="t-mat">Materiales por grupo</h2>
+  <ul class="mats">
+    <li><span>Batería de 9 V con broche</span><b>×1</b></li>
+    <li><span>Potenciómetro de 1 kΩ (B1K)</span><b>×1</b></li>
+    <li><span>LEDs de 5 mm</span><b>×5</b></li>
+    <li><span>Resistencias de 470 Ω (amarillo, violeta, café)</span><b>×5</b></li>
+    <li><span>Protoboard</span><b>×1</b></li>
+    <li><span>Cables jumper</span><b>×8–10</b></li>
+    <li><span>Interruptor deslizable (opcional)</span><b>×1</b></li>
+  </ul>
+  <h3>Para discutir en grupo</h3>
+  <ol class="qs">
+    <li>¿Por qué el LED azul se ve más débil que el rojo con la misma resistencia?</li>
+    <li>¿Qué pasa con el brillo de los demás LEDs cuando quitas uno? ¿Por qué?</li>
+    <li>¿Por qué con el potenciómetro de 10 kΩ casi todo el giro se ve apagado?</li>
+  </ol>
+</section>
+</div>
+
+<script>
+(function(){
+const NS="http://www.w3.org/2000/svg";
+const $=id=>document.getElementById(id);
+function el(t,a,p){const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);if(p)p.appendChild(e);return e;}
+const fmt=(n,d)=>n.toFixed(d).replace(".",",");
+const LEDS=[{n:"Rojo",c:"#ff3b2f",vf:2.0},{n:"Amarillo",c:"#ffc61a",vf:2.1},{n:"Verde",c:"#2fc552",vf:2.2},{n:"Azul",c:"#2f7bff",vf:3.0},{n:"Blanco",c:"#eef2ff",vf:3.1}];
+const AX=[176,220,264,308,352];
+const DEF={p:.65,on:true,V:9,Rmax:1000,R:470,led:["ok","ok","ok","ok","ok"],burnt:[0,0,0,0,0]};
+let S=JSON.parse(JSON.stringify(DEF)); S.mode="probar"; S.step=4;
+
+/* ---- dibujar resistencias y LEDs ---- */
+const g2=$("g2"), g3=$("g3"), resParts=[], ledParts=[];
+AX.forEach((a,i)=>{
+  const g=el("g",{},g2);
+  el("line",{x1:a,y1:34,x2:a,y2:128,class:"lead"},g);
+  const body=el("g",{},g);
+  el("rect",{x:a-5,y:62,width:10,height:36,rx:4,fill:"#d9c39a"},body);
+  const bands=[70,77,84].map(y=>el("rect",{x:a-5,y:y,width:10,height:3.5},body));
+  el("rect",{x:a-5,y:91,width:10,height:3,fill:"#c9a227"},body);
+  const jump=el("path",{class:"wire",d:`M${a},40 V126`,style:"stroke:var(--wire-orange)"},g);
+  resParts.push({body,bands,jump});
+
+  const lg=el("g",{class:"ledg",tabindex:0,role:"button","aria-label":"LED "+LEDS[i].n+": tocar para cambiar"},g3);
+  el("line",{x1:a,y1:128,x2:a,y2:154,class:"lead"},lg);
+  el("line",{x1:a+8,y1:166,x2:a+8,y2:198,class:"lead"},lg);
+  el("path",{class:"wire",d:`M${a+8},198 V292`,style:"stroke:var(--wire-black)"},lg);
+  const halo=el("circle",{cx:a+4,cy:156,r:20,fill:LEDS[i].c,filter:"url(#glow)",opacity:0},lg);
+  el("rect",{x:a-7,y:156,width:22,height:8,rx:1.5,fill:LEDS[i].c,opacity:.75},lg);
+  const dome=el("path",{d:`M${a-6},160 V150 a10,10 0 0 1 20,0 V160 Z`,fill:LEDS[i].c,stroke:"rgba(0,0,0,.25)"},lg);
+  const shine=el("circle",{cx:a,cy:148,r:2.6,fill:"#fff",opacity:.7},lg);
+  const x1=el("path",{d:`M${a-2},144 l12,12 M${a+10},144 l-12,12`,stroke:"#222","stroke-width":2.2,opacity:0},lg);
+  const tag=el("text",{x:a+4,y:216,"text-anchor":"middle",class:"lbl"},lg);
+  el("rect",{x:a-12,y:136,width:32,height:70,fill:"transparent"},lg);
+  const cyc=()=>{cycle(i)};
+  lg.addEventListener("click",cyc);
+  lg.addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();cyc();}});
+  ledParts.push({lg,halo,dome,shine,x1,tag});
+});
+const BANDS={220:["#d22","#d22","#7a4a1e"],470:["#f2c200","#7a3fb5","#7a4a1e"],1000:["#7a4a1e","#111","#d22"]};
+
+/* ---- caminos de corriente ---- */
+const flows=$("flows"), FP=[];
+function fpath(d){const p=el("path",{d,class:"flow"},flows);FP.push({p,off:0,spd:0});return FP.length-1;}
+const F_MAIN=fpath("M26,145 V94 H96 V134 H110 V118 H125 V146 H160 V34");
+const F_RAIL=fpath("M160,34 H352");
+const F_BR=AX.map(a=>fpath(`M${a},34 V154 L${a+8},166 V292`));
+const F_RET=fpath("M360,292 H96 H74 V136 H50 V145");
+
+/* ---- perilla grande ---- */
+const knob=$("knob"), KC=85;
+const polar=(deg,r)=>{const t=(deg-90)*Math.PI/180;return [KC+r*Math.cos(t),KC+r*Math.sin(t)];};
+for(let k=0;k<=10;k++){
+  const d=-135+k*27,[x1,y1]=polar(d,66),[x2,y2]=polar(d,74),[tx,ty]=polar(d,82);
+  el("line",{x1,y1,x2,y2,stroke:"var(--muted)","stroke-width":k%5?1.2:2},knob);
+  if(k%2===0) el("text",{x:tx,y:ty+3,"text-anchor":"middle","font-size":9,"font-family":"var(--mono)",fill:"var(--muted)"},knob).textContent=k;
+}
+const arcBg=el("path",{fill:"none",stroke:"var(--line)","stroke-width":6,"stroke-linecap":"round"},knob);
+const arcFg=el("path",{fill:"none",stroke:"var(--accent)","stroke-width":6,"stroke-linecap":"round"},knob);
+function arc(a0,a1,r){const [x0,y0]=polar(a0,r),[x1,y1]=polar(a1,r);return `M${x0},${y0} A${r},${r} 0 ${a1-a0>180?1:0} 1 ${x1},${y1}`;}
+arcBg.setAttribute("d",arc(-135,135,58));
+const kg=el("g",{},knob);
+el("circle",{cx:KC,cy:KC,r:46,fill:"var(--knob)",stroke:"var(--knob-edge)","stroke-width":2},kg);
+for(let k=0;k<24;k++){const [a,b]=polar(k*15,46),[c,d]=polar(k*15,41);el("line",{x1:a,y1:b,x2:c,y2:d,stroke:"var(--knob-edge)","stroke-width":1.4},kg);}
+el("circle",{cx:KC,cy:KC,r:34,fill:"var(--knob)",stroke:"var(--knob-edge)","stroke-opacity":.5},kg);
+el("rect",{x:KC-3,y:KC-38,width:6,height:22,rx:3,fill:"var(--accent)"},kg);
+const kval=el("text",{x:KC,y:KC+8,"text-anchor":"middle","font-family":"var(--mono)","font-size":15,"font-weight":600,fill:"#333"},knob);
+
+function setP(p){S.p=Math.min(1,Math.max(0,p));render();}
+let drag=false;
+function fromPointer(e){
+  const r=knob.getBoundingClientRect();
+  const dx=e.clientX-(r.left+r.width/2), dy=e.clientY-(r.top+r.height/2);
+  let a=Math.atan2(dx,-dy)*180/Math.PI;
+  if(a>135||a<-135){a = (S.p>.5)?135:-135;}
+  setP((a+135)/270);
+}
+knob.addEventListener("pointerdown",e=>{drag=true;knob.setPointerCapture(e.pointerId);fromPointer(e);});
+knob.addEventListener("pointermove",e=>{if(drag)fromPointer(e);});
+knob.addEventListener("pointerup",()=>drag=false);
+knob.addEventListener("pointercancel",()=>drag=false);
+knob.addEventListener("keydown",e=>{
+  const m={ArrowRight:.02,ArrowUp:.02,ArrowLeft:-.02,ArrowDown:-.02,PageUp:.1,PageDown:-.1};
+  if(m[e.key]!==undefined){e.preventDefault();setP(S.p+m[e.key]);}
+  if(e.key==="Home"){e.preventDefault();setP(0);} if(e.key==="End"){e.preventDefault();setP(1);}
+});
+$("range").addEventListener("input",e=>setP(e.target.value/1000));
+
+/* ---- controles ---- */
+function seg(id,key,attr,num){
+  $(id).querySelectorAll("button").forEach(b=>b.addEventListener("click",()=>{S[key]=+b.dataset[attr];render();}));
+}
+seg("seg-v","V","v"); seg("seg-p","Rmax","p"); seg("seg-r","R","r");
+function toggle(){S.on=!S.on;render();}
+$("power").addEventListener("click",toggle);
+$("sw").addEventListener("click",toggle);
+$("sw").addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();toggle();}});
+$("repair").addEventListener("click",()=>{S.burnt=[0,0,0,0,0];render();});
+$("reset").addEventListener("click",()=>{const m=S.mode,st=S.step;S=JSON.parse(JSON.stringify(DEF));S.mode=m;S.step=st;render();});
+function cycle(i){
+  if(S.burnt[i]){S.burnt[i]=0;render();return;}
+  const order=["ok","inv","off"];S.led[i]=order[(order.indexOf(S.led[i])+1)%3];render();
+}
+
+/* ---- modo armar ---- */
+const STEPS=[
+  ["Revisa los materiales","Ten a mano la batería con su broche, el potenciómetro, 5 resistencias, 5 LEDs y los cables. Deja la batería desconectada mientras armas."],
+  ["Potenciómetro y cable rojo","Inserta el potenciómetro. Lleva el cable rojo de la batería, pasando por el interruptor, a una pata extrema. Une la pata central con el riel + usando un cable. La tercera pata queda libre."],
+  ["Resistencias","Coloca las 5 resistencias desde el riel + hacia cinco columnas distintas, una por LED."],
+  ["LEDs","Pata larga (ánodo) en la columna de cada resistencia. Pata corta (cátodo), del lado plano, al riel − con un cable negro."],
+  ["Cierra el circuito","Conecta el cable negro de la batería al riel −. Enciende el interruptor y gira la perilla. Ya puedes probar el circuito completo."]
+];
+const GR=["g1","g2","g3","g4"];
+const dots=$("b-dots"); STEPS.forEach(()=>dots.appendChild(document.createElement("i")));
+function setMode(m){S.mode=m;if(m==="armar")S.step=0;
+  $("tab-probar").setAttribute("aria-selected",m==="probar");$("tab-armar").setAttribute("aria-selected",m==="armar");render();}
+$("tab-probar").addEventListener("click",()=>setMode("probar"));
+$("tab-armar").addEventListener("click",()=>setMode("armar"));
+$("b-prev").addEventListener("click",()=>{if(S.step>0){S.step--;render();}});
+$("b-next").addEventListener("click",()=>{if(S.step<4){S.step++;render();}else setMode("probar");});
+const complete=()=>S.mode==="probar"||S.step>=4;
+
+/* ---- simulación ---- */
+function solve(p,st,force){
+  const Rp=st.Rmax*(1-p)+2, Rs=Rp+1.5, zero={Vn:0,I:[0,0,0,0,0],It:0,Rp};
+  if(!force&&(!st.on||!complete())) return zero;
+  const Rb=st.R||5;
+  const act=LEDS.map((l,i)=>st.led[i]==="ok"&&!st.burnt[i]);
+  const cur=Vn=>LEDS.map((l,i)=>act[i]?Math.max(0,Vn-l.vf)/Rb:0);
+  let lo=0,hi=st.V;
+  for(let k=0;k<60;k++){const m=(lo+hi)/2,g=(st.V-m)/Rs-cur(m).reduce((a,b)=>a+b,0);if(g>0)lo=m;else hi=m;}
+  const Vn=(lo+hi)/2,I=cur(Vn);
+  return {Vn,I,It:I.reduce((a,b)=>a+b,0),Rp};
+}
+const ohms=r=>r>=1000?fmt(r/1000,r>=10000?1:2)+" kΩ":Math.round(r)+" Ω";
+
+let lastAlert="";
+function render(){
+  let r=solve(S.p,S), burned=[];
+  for(let k=0;k<5;k++){
+    const idx=r.I.findIndex((v,i)=>v>0.04&&!S.burnt[i]);
+    if(idx<0)break; S.burnt[idx]=1; burned.push(LEDS[idx].n.toLowerCase()); r=solve(S.p,S);
+  }
+  const P=r.It*r.It*r.Rp;
+
+  // controles
+  [["seg-v","v","V"],["seg-p","p","Rmax"],["seg-r","r","R"]].forEach(([id,a,k])=>$(id).querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed",+b.dataset[a]===S[k])));
+  $("power").setAttribute("aria-pressed",S.on);$("power-txt").textContent=S.on?"Encendido":"Apagado";
+  $("sw-lever").setAttribute("y",S.on?108:116);
+  $("batt-label").textContent=String(S.V).replace(".",",")+" V";
+  $("range").value=Math.round(S.p*1000);
+  const ang=-135+270*S.p;
+  kg.setAttribute("transform",`rotate(${ang} ${KC} ${KC})`);
+  $("mini-knob").setAttribute("transform",`rotate(${ang} 125 83)`);
+  arcFg.setAttribute("d",S.p>0.003?arc(-135,ang,58):"");
+  kval.textContent=fmt(S.p*10,1); kval.setAttribute("transform",`rotate(${-ang} ${KC} ${KC})`);
+  // texto del número se dibuja fuera del grupo giratorio, no necesita rotación
+  kval.removeAttribute("transform");
+  knob.setAttribute("aria-valuenow",(S.p*10).toFixed(1));
+  $("repair").hidden=!S.burnt.some(Boolean);
+
+  // resistencias
+  resParts.forEach(rp=>{
+    const none=S.R===0; rp.body.style.display=none?"none":""; rp.jump.style.display=none?"":"none";
+    if(!none) rp.bands.forEach((b,j)=>b.setAttribute("fill",BANDS[S.R][j]));
+  });
+  // LEDs
+  ledParts.forEach((lp,i)=>{
+    const I=r.I[i], b=Math.min(1,Math.pow(I/0.015,.55)), st=S.led[i], bu=S.burnt[i];
+    lp.lg.style.opacity=st==="off"?.18:1;
+    lp.dome.setAttribute("fill",bu?"#6b6b66":LEDS[i].c);
+    lp.dome.setAttribute("opacity",bu?1:.35+.65*b);
+    lp.halo.setAttribute("opacity",bu?0:.9*b);
+    lp.shine.setAttribute("opacity",bu?0:.7);
+    lp.x1.setAttribute("opacity",bu?1:0);
+    lp.tag.textContent=bu?"quemado":st==="inv"?"al revés":st==="off"?"quitado":(I*1000>=.1?fmt(I*1000,1)+" mA":"0 mA");
+    lp.tag.style.fill=bu||st==="inv"?"var(--bad)":"var(--muted)";
+  });
+  // corriente
+  const mA=x=>x*1000;
+  FP[F_MAIN].spd=mA(r.It); FP[F_RAIL].spd=mA(r.It); FP[F_RET].spd=mA(r.It);
+  F_BR.forEach((k,i)=>FP[k].spd=mA(r.I[i]));
+  FP.forEach(f=>f.p.style.opacity=f.spd>0.05?Math.min(1,.4+f.spd/10):0);
+
+  // modo armar
+  $("build").hidden=S.mode!=="armar";
+  GR.forEach((g,k)=>{
+    const n=$(g); const placed=S.mode==="probar"||k<S.step;
+    n.classList.toggle("ghost",!placed); n.classList.toggle("current-step",S.mode==="armar"&&k===S.step-1);
+  });
+  if(S.mode==="armar"){
+    $("b-title").textContent=`Paso ${S.step+1} de 5 · ${STEPS[S.step][0]}`;
+    $("b-text").textContent=STEPS[S.step][1];
+    [...dots.children].forEach((d,k)=>d.classList.toggle("on",k<=S.step));
+    $("b-prev").disabled=S.step===0;
+    $("b-next").textContent=S.step<4?"Siguiente paso":"Probar circuito";
+  }
+
+  // alertas
+  let al="",cls="";
+  if(burned.length) al=`Se quemó el LED ${burned.join(", ")}: pasó más de 40 mA. Sin una resistencia que limite, la corriente sube demasiado.`;
+  else if(P>0.25){al=`El potenciómetro disipa ${Math.round(P*1000)} mW y se calienta. Uno pequeño aguanta unos 250 mW.`;cls="w";}
+  else if(S.R===220&&r.I.some(v=>v>0.025)){al="Con 220 Ω y 9 V algunos LEDs superan 25 mA. Funciona, pero se calientan y duran menos.";cls="w";}
+  const A=$("alert");
+  if(burned.length){lastAlert=al;}
+  else if(lastAlert&&S.burnt.some(Boolean)){al=lastAlert;}
+  else lastAlert="";
+  A.hidden=!al; A.textContent=al; A.className="alert"+(cls&&!burned.length&&!lastAlert?" w":"");
+
+  // medidores
+  $("m-rp").textContent=ohms(r.Rp-2);
+  $("m-it").textContent=fmt(r.It*1000,1)+" mA";
+  $("m-vn").textContent=fmt(r.Vn,2)+" V";
+  $("m-pw").textContent=Math.round(P*1000)+" mW";
+  $("m-pw-box").classList.toggle("hot",P>0.25);
+
+  // lista de LEDs
+  ledRows.forEach((row,i)=>{
+    const I=r.I[i]*1000, st=S.led[i], bu=S.burnt[i];
+    let s,c="var(--ok)";
+    if(bu){s="Quemado";c="var(--bad)";}
+    else if(st==="off") s="Quitado";
+    else if(st==="inv"){s="Al revés: no conduce";c="var(--bad)";}
+    else if(I<0.05) s="Apagado";
+    else if(I<2){s="Tenue · "+fmt(I,1)+" mA";}
+    else if(I<=20) s="Normal · "+fmt(I,1)+" mA";
+    else {s="Muy alto · "+fmt(I,1)+" mA";c="var(--warn)";}
+    row.stat.textContent=s; row.stat.style.color=(bu||st==="inv")?"var(--bad)":"";
+    row.fill.style.width=Math.min(100,I/30*100)+"%"; row.fill.style.background=c;
+    row.btn.textContent=bu?"Cambiar LED":st==="ok"?"Poner al revés":st==="inv"?"Quitar":"Poner";
+  });
+
+  // ley de Ohm
+  const li=r.I.findIndex(v=>v>0.00005);
+  if(li>=0&&S.R>0){
+    $("ohm-f").textContent=`I = (${fmt(r.Vn,2)} V − ${fmt(LEDS[li].vf,1)} V) ÷ ${S.R} Ω = ${fmt(r.I[li]*1000,1)} mA`;
+    $("ohm-t").textContent=`Corriente del LED ${LEDS[li].n.toLowerCase()}: el voltaje de los rieles menos el que consume el LED, dividido entre su resistencia. Al girar la perilla cambia el voltaje de los rieles.`;
+  } else if(li>=0){
+    $("ohm-f").textContent="I = V ÷ R, con R casi 0";
+    $("ohm-t").textContent="Sin resistencia en cada LED, solo el potenciómetro limita la corriente y los LEDs de menor voltaje se la llevan casi toda.";
+  } else {
+    $("ohm-f").textContent="I = 0 mA";
+    $("ohm-t").textContent=!complete()?"El circuito está incompleto: termina el montaje para que circule corriente.":!S.on?"El interruptor está apagado: el circuito está abierto.":S.led.every((s,i)=>s!=="ok"||S.burnt[i])?"No hay LEDs bien conectados.":`El voltaje de los rieles (${fmt(r.Vn,2)} V) no alcanza el mínimo que necesitan los LEDs para encender.`;
+  }
+
+  drawChart(); checkRetos(r);
+}
+
+/* ---- lista de LEDs ---- */
+const ledRows=LEDS.map((l,i)=>{
+  const row=document.createElement("div");row.className="lrow";
+  row.innerHTML=`<span class="sw" style="background:${l.c}"></span><span class="lname">${l.n}<br><span class="lstat">Vf ${fmt(l.vf,1)} V</span></span><span class="lbar"><span class="track"><span class="fill"></span></span><span class="lstat"></span></span><button class="btn" type="button" id="lb-${i}"></button>`;
+  $("ledlist").appendChild(row);
+  const btn=row.querySelector("button");btn.addEventListener("click",()=>cycle(i));
+  return {fill:row.querySelector(".fill"),stat:row.querySelectorAll(".lstat")[1],btn};
+});
+
+/* ---- gráfica ---- */
+const chart=$("chart");
+function drawChart(){
+  chart.innerHTML="";
+  const L=44,R=346,T=14,B=148,pts=[];
+  for(let k=0;k<=80;k++){const p=k/80;pts.push([p,solve(p,S,true).It*1000]);}
+  const mx=Math.max(...pts.map(q=>q[1]),.1);
+  const steps=[1,2,5,10,20,25,50,100,200,500];let st=steps.find(s=>mx/s<=4)||1000;
+  const top=Math.max(st,Math.ceil(mx/st)*st);
+  const X=p=>L+(R-L)*p, Y=v=>B-(B-T)*v/top;
+  for(let v=0;v<=top+1e-9;v+=st){
+    el("line",{x1:L,x2:R,y1:Y(v),y2:Y(v),stroke:"var(--line)","stroke-width":1},chart);
+    el("text",{x:L-6,y:Y(v)+3,"text-anchor":"end","font-size":9,"font-family":"var(--mono)",fill:"var(--muted)"},chart).textContent=v;
+  }
+  for(let k=0;k<=10;k+=2) el("text",{x:X(k/10),y:B+14,"text-anchor":"middle","font-size":9,"font-family":"var(--mono)",fill:"var(--muted)"},chart).textContent=k;
+  el("text",{x:(L+R)/2,y:B+28,"text-anchor":"middle","font-size":9,fill:"var(--muted)","font-family":"var(--body)"},chart).textContent="Posición de la perilla";
+  el("text",{x:8,y:T+2,"font-size":9,fill:"var(--muted)","font-family":"var(--body)"},chart).textContent="mA";
+  const line=pts.map((q,i)=>(i?"L":"M")+X(q[0]).toFixed(1)+","+Y(q[1]).toFixed(1)).join(" ");
+  el("path",{d:line+` L${R},${B} L${L},${B} Z`,fill:"var(--accent)","fill-opacity":.12},chart);
+  el("path",{d:line,fill:"none",stroke:"var(--accent)","stroke-width":2.2},chart);
+  const cur=solve(S.p,S,true).It*1000;
+  el("line",{x1:X(S.p),x2:X(S.p),y1:T,y2:B,stroke:"var(--copper)","stroke-dasharray":"3 3"},chart);
+  el("circle",{cx:X(S.p),cy:Y(cur),r:5,fill:"var(--copper)",stroke:"var(--surface)","stroke-width":2},chart);
+  const tx=Math.min(X(S.p)+8,R-60);
+  el("text",{x:tx,y:Math.max(T+10,Y(cur)-8),"font-size":10,"font-family":"var(--mono)",fill:"var(--ink)","font-weight":600},chart).textContent=fmt(cur,1)+" mA";
+}
+
+/* ---- retos ---- */
+const RETOS=[
+  ["Brillo al máximo","Con 9 V, enciende los 5 LEDs con la perilla al tope.",r=>S.V===9&&S.p>=.97&&r.I.every(v=>v>0.002)],
+  ["Pilas de 3 V","Con 3 V, logra que rojo, amarillo y verde enciendan, pero azul y blanco no.",r=>S.V===3&&r.I[0]>0.0004&&r.I[1]>0.0003&&r.I[2]>0.0002&&r.I[3]<0.00005&&r.I[4]<0.00005&&S.led[3]==="ok"&&S.led[4]==="ok"],
+  ["LED al revés","Con el circuito encendido, pon un LED al revés y mira que los demás siguen funcionando.",r=>S.led.includes("inv")&&r.It>0.001],
+  ["Perilla de 10 kΩ","Con el potenciómetro de 10 kΩ, ubica la perilla donde la corriente total esté entre 1 y 3 mA.",r=>S.Rmax===10000&&r.It>=0.001&&r.It<=0.003],
+  ["Descubre el peligro","Quita las resistencias y averigua qué le pasa a un LED.",()=>S.burnt.some(Boolean)]
+];
+let done=[0,0,0,0,0];
+try{const s=JSON.parse(localStorage.getItem("retos-brillo-v1"));if(Array.isArray(s))done=s;}catch(e){}
+const retoEls=RETOS.map(([t,d])=>{const n=document.createElement("div");n.className="reto";n.innerHTML=`<span class="chk">✓</span><div><h3>${t}</h3><p>${d}</p></div>`;$("retos").appendChild(n);return n;});
+function checkRetos(r){
+  let ch=false;
+  RETOS.forEach((x,i)=>{if(!done[i]&&x[2](r)){done[i]=1;ch=true;}});
+  if(ch){try{localStorage.setItem("retos-brillo-v1",JSON.stringify(done));}catch(e){}}
+  retoEls.forEach((n,i)=>n.classList.toggle("done",!!done[i]));
+  $("r-count").textContent=done.filter(Boolean).length+" de 5";
+}
+$("r-reset").addEventListener("click",()=>{done=[0,0,0,0,0];try{localStorage.removeItem("retos-brillo-v1");}catch(e){}render();});
+
+/* ---- animación de corriente ---- */
+const still=window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+let t0=performance.now();
+function tick(t){
+  const dt=Math.min(.05,(t-t0)/1000);t0=t;
+  if(!still) FP.forEach(f=>{if(f.spd>0.05){f.off-=Math.min(160,8+f.spd*4)*dt;f.p.style.strokeDashoffset=f.off;}});
+  requestAnimationFrame(tick);
+}
+render(); requestAnimationFrame(tick);
+})();
+</script>
+
+</body>
+</html>
